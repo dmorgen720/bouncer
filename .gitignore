@@ -1,0 +1,20 @@
+# Secrets — never commit these
+.env
+*.env
+!*.env.example
+
+# .NET build output
+bin/
+obj/
+
+# User secrets
+secrets.json
+
+# Rider / VS
+.idea/
+.vs/
+*.user
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+.node rect, .node circle, .node ellipse, .node polygon, .node path {
+}
+.node .label, .node text, .nodeLabel, .label, text {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+}
+.edgeLabel {
+    color: #333 !important;
+}
+span.edgeLabel {
+    color: #333 !important;
+}

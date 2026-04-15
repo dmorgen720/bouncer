@@ -1,0 +1,28 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#ffffff", "lineColor": "#aaa"}} }%%
+flowchart LR
+    A([📬 New email\narrives]) --> B
+
+    B[🤖 AI reads\nthe email] --> C{Is this a\njob offer?}
+
+    C -- No --> D([🗑️ Ignored])
+    C -- Yes --> E
+
+    E[🧠 AI checks\nagainst your criteria\nLocation · Role · Seniority] --> F{Good\nmatch?}
+
+    F -- No --> G[✍️ Decline draft\nready]
+    F -- Yes --> H[✍️ Accept draft\nready]
+
+    G --> I
+    H --> I
+
+    I([👤 You review\n& click send])
+
+    classDef blue fill:#4a9eff,color:#ffffff,stroke:none
+    classDef yellow fill:#f0a500,color:#ffffff,stroke:none
+    classDef gray fill:#888888,color:#ffffff,stroke:none
+    classDef green fill:#2db87a,color:#ffffff,stroke:none
+
+    class A,B,E,G,H blue
+    class C,F yellow
+    class D gray
+    class I green

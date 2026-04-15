@@ -1,0 +1,48 @@
+@page "/settings"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject GraphSettings GraphSettings
+@inject AISettings AISettings
+@inject AutoReplySettings AutoReplySettings
+
+<PageTitle>Settings</PageTitle>
+<MudText Typo="Typo.h5" Class="mb-4">Settings</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudCard>
+            <MudCardHeader><MudText Typo="Typo.h6">Graph / Mailbox</MudText></MudCardHeader>
+            <MudCardContent>
+                <MudTextField Label="Tenant ID" Value="@GraphSettings.TenantId" ReadOnly="true" />
+                <MudTextField Label="Client ID" Value="@GraphSettings.ClientId" ReadOnly="true" Class="mt-2" />
+                <MudTextField Label="User ID (mailbox)" Value="@GraphSettings.UserId" ReadOnly="true" Class="mt-2" />
+                <MudTextField Label="LinkedIn Folder" Value="@GraphSettings.LinkedInFolderName" ReadOnly="true" Class="mt-2" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard>
+            <MudCardHeader><MudText Typo="Typo.h6">AI / LLM</MudText></MudCardHeader>
+            <MudCardContent>
+                <MudTextField Label="Provider" Value="@AISettings.Provider" ReadOnly="true" />
+                <MudTextField Label="Endpoint" Value="@AISettings.Ollama.Endpoint" ReadOnly="true" Class="mt-2" />
+                <MudTextField Label="Model" Value="@AISettings.Ollama.ModelId" ReadOnly="true" Class="mt-2" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard>
+            <MudCardHeader><MudText Typo="Typo.h6">Auto-Reply</MudText></MudCardHeader>
+            <MudCardContent>
+                <MudTextField Label="Draft Only" Value="@AutoReplySettings.DraftOnly.ToString()" ReadOnly="true" />
+                <MudTextField Label="Poll Interval (s)" Value="@AutoReplySettings.PollIntervalSeconds.ToString()" ReadOnly="true" Class="mt-2" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+<MudAlert Severity="Severity.Info" Class="mt-4">
+    Configuration is read-only here. Edit <code>appsettings.json</code> to change values.
+</MudAlert>

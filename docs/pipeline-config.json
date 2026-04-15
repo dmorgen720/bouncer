@@ -1,0 +1,9 @@
+{
+  "theme": "base",
+  "flowchart": {
+    "curve": "basis",
+    "padding": 20,
+    "nodeSpacing": 40,
+    "rankSpacing": 50
+  }
+}

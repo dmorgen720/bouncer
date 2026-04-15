@@ -1,0 +1,53 @@
+@page "/login"
+@layout EmptyLayout
+
+<PageTitle>Bouncer — Login</PageTitle>
+
+<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#F3F2EF">
+    <MudPaper Elevation="3" Style="width:340px;padding:2rem">
+        <MudStack Spacing="4">
+            <MudText Typo="Typo.h5" Align="Align.Center" Style="color:#0A66C2;font-weight:700">
+                🔒 Bouncer
+            </MudText>
+            <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary">
+                Recruiter Message Triage
+            </MudText>
+
+            @if (ShowError)
+            {
+                <MudAlert Severity="Severity.Error" Dense="true">Incorrect password.</MudAlert>
+            }
+
+            <form method="post" action="/do-login">
+                <MudStack Spacing="3">
+                    <input type="hidden" name="__RequestVerificationToken" value="@_token" />
+                    <MudTextField T="string" Label="Password" Variant="Variant.Outlined"
+                        InputType="InputType.Password" name="password" Required="true"
+                        Immediate="false" />
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
+                        Color="Color.Primary" FullWidth="true">
+                        Sign in
+                    </MudButton>
+                </MudStack>
+            </form>
+        </MudStack>
+    </MudPaper>
+</div>
+
+@code {
+    [Parameter][SupplyParameterFromQuery] public string? Error { get; set; }
+    [CascadingParameter] HttpContext? HttpContext { get; set; }
+
+    private bool ShowError => Error == "1";
+    private string _token = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (HttpContext is not null)
+        {
+            var antiforgery = HttpContext.RequestServices
+                .GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+            _token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken ?? string.Empty;
+        }
+    }
+}

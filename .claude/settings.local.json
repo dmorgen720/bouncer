@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet ef:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet build:*)",
+      "Bash(python3 -c \"import weasyprint\")",
+      "Bash(mmdc -i pipeline.mmd -o pipeline.pdf -c pipeline-config.json --pdfFit)",
+      "Bash(open /Users/david/Projects/JobShitter/docs/pipeline.pdf)",
+      "Bash(open pipeline.pdf)",
+      "Bash(mmdc -i pipeline.mmd -o pipeline.svg -c pipeline-config.json --cssFile pipeline-override.css)",
+      "Bash(python3)",
+      "Bash(node -e ':*)",
+      "Bash(python3 -c ':*)",
+      "Bash(mmdc -i overview.mmd -o overview.svg -c pipeline-config.json --cssFile pipeline-override.css)",
+      "Bash(open overview.pdf)",
+      "Bash(bash /tmp/check.sh)",
+      "Read(//tmp/**)",
+      "WebSearch",
+      "WebFetch(domain:www.nuget.org)",
+      "Bash(dotnet package:*)",
+      "Bash(mkdir -p /tmp/pkg_check)",
+      "Read(//private/tmp/pkg_check/**)",
+      "Bash(dotnet add:*)",
+      "Bash(cat)",
+      "Bash(dotnet run:*)",
+      "Bash(dotnet user-secrets:*)"
+    ]
+  }
+}

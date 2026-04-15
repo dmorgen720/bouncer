@@ -1,0 +1,414 @@
+@page "/"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IServiceScopeFactory ScopeFactory
+@inject ScanTriggerService ScanTrigger
+@inject GraphDraftService DraftService
+@inject MergeService MergeService
+@inject ISnackbar Snackbar
+@inject ILogger<Home> logger
+@implements IDisposable
+
+<PageTitle>LinkedIn Auto-Reply — Dashboard</PageTitle>
+
+@* ── Summary bar ── *@
+<MudGrid Class="mb-4">
+    <MudItem xs="3">
+        <MudPaper Class="pa-4 text-center" Elevation="2">
+            <MudText Typo="Typo.h4">@_messages.Count</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Default">Total</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="3">
+        <MudPaper Class="pa-4 text-center" Elevation="2" Style="border-left: 4px solid #0F6E56">
+            <MudText Typo="Typo.h4" Style="color:#0F6E56">@_messages.Count(m => m.Verdict == AssessmentVerdict.Match)</MudText>
+            <MudText Typo="Typo.body2">Match</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="3">
+        <MudPaper Class="pa-4 text-center" Elevation="2" Style="border-left: 4px solid #854F0B">
+            <MudText Typo="Typo.h4" Style="color:#854F0B">@_messages.Count(m => m.Verdict == AssessmentVerdict.Partial)</MudText>
+            <MudText Typo="Typo.body2">Partial</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="3">
+        <MudPaper Class="pa-4 text-center" Elevation="2" Style="border-left: 4px solid #A32D2D">
+            <MudText Typo="Typo.h4" Style="color:#A32D2D">@_messages.Count(m => m.Verdict == AssessmentVerdict.NoMatch)</MudText>
+            <MudText Typo="Typo.body2">No Match</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@* ── Toolbar ── *@
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4" Justify="Justify.SpaceBetween">
+    <MudText Typo="Typo.h5">Recruiter Messages</MudText>
+    <MudStack Row="true" Spacing="2">
+        @if (_scanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="TriggerScan" Disabled="_scanning">
+            Scan Now
+        </MudButton>
+        <MudTooltip Text="Clears the saved delta link so the next scan re-reads the full inbox">
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                       StartIcon="@Icons.Material.Filled.RestartAlt"
+                       OnClick="ResetDelta" Disabled="_scanning">
+                Reset Delta
+            </MudButton>
+        </MudTooltip>
+        <MudTooltip Text="Deletes all recruiter messages from the local database">
+            <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="ClearDatabase" Disabled="_scanning">
+                Clear DB
+            </MudButton>
+        </MudTooltip>
+    </MudStack>
+</MudStack>
+
+@* ── Recruiter cards ── *@
+@foreach (var msg in _messages.Where(m => !m.Discarded).OrderByDescending(m => m.ReceivedAt))
+{
+    var filters = GetFilters(msg);
+    var isExpanded = _expanded.Contains(msg.Id);
+    var isDecided = msg.Approved.HasValue;
+    var cardStyle = isDecided ? "opacity:0.6" : string.Empty;
+    var accentColor = VerdictColor(msg.Verdict);
+    var bgColor = VerdictBg(msg.Verdict);
+
+    <MudPaper Class="mb-3 pa-0" Elevation="2" Style="@($"overflow:hidden;{cardStyle}")">
+        @* Header *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="pa-3"
+                  Style="cursor:pointer"
+                  @onclick="() => ToggleExpand(msg.Id)">
+            @* Avatar *@
+            <MudAvatar Style="@($"background-color:{accentColor};color:white;flex-shrink:0")">
+                @Initials(msg.RecruiterName)
+            </MudAvatar>
+            <MudStack Spacing="0" Class="ml-3 flex-grow-1">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudText Typo="Typo.subtitle1"><b>@msg.RecruiterName</b></MudText>
+                    <MudChip T="string" Size="Size.Small"
+                             Style="@($"background-color:{bgColor};color:{accentColor};font-size:0.7rem")">
+                        @msg.Verdict
+                    </MudChip>
+                    @if (isDecided)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="@(msg.Approved == true ? Color.Success : Color.Error)">
+                            @(msg.Approved == true ? "Approved" : "Rejected")
+                        </MudChip>
+                    }
+                </MudStack>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@msg.RoleTitle</MudText>
+                <MudStack Row="true" Spacing="1" Class="mt-1">
+                    @if (!string.IsNullOrEmpty(msg.Agency))
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@msg.Agency</MudChip>
+                    }
+
+                </MudStack>
+            </MudStack>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mr-2">
+                @msg.ReceivedAt.ToLocalTime().ToString("dd MMM HH:mm")
+            </MudText>
+            <div @onclick="() => DiscardAsync(msg.Id)"
+                 @onclick:stopPropagation="true"
+                 title="Not a job offer — hide from list"
+                 style="cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center"
+                 class="mr-1">
+                <MudIcon Icon="@Icons.Material.Filled.NotInterested" Size="Size.Small" Color="Color.Default" />
+            </div>
+            <MudIcon Icon="@(isExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" />
+        </MudStack>
+
+        @* Body *@
+        @if (isExpanded)
+        {
+            <MudDivider />
+            <div class="pa-4">
+                @* Original message *@
+                <MudText Typo="Typo.overline" Class="mb-1">Message</MudText>
+                <div style="border-left: 3px solid #ccc; padding: 8px 12px; background:#fafafa; margin-bottom:16px; font-size:0.875rem">
+                    <div style="margin-bottom:6px; color:#555">
+                        <b>From:</b> @msg.RecruiterName
+                        @if (!string.IsNullOrEmpty(msg.Agency)) { <span> (@msg.Agency)</span> }
+                        @if (!string.IsNullOrEmpty(msg.ReplyToAddress)) { <span> &lt;@msg.ReplyToAddress&gt;</span> }
+                    </div>
+                    <div style="white-space:pre-wrap">@msg.OriginalMessageText</div>
+                </div>
+
+                @* Assessment filters *@
+                <MudText Typo="Typo.overline" Class="mb-1">Assessment</MudText>
+                @foreach (var f in filters)
+                {
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                        <MudIcon Icon="@FilterIcon(f.Status)"
+                                 Style="@($"color:{FilterIconColor(f.Status)}")"
+                                 Size="Size.Small" />
+                        <MudText Typo="Typo.body2"><b>@f.FilterName</b></MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">— @f.Reason</MudText>
+                    </MudStack>
+                }
+
+                @* Draft replies *@
+                @if (!isDecided)
+                {
+                    <MudTextField @bind-Value="_notes[msg.Id]"
+                                  Label="Optional note — merged into whichever response you choose"
+                                  Lines="2" Variant="Variant.Outlined" Class="mt-3 mb-3" />
+
+                    <MudGrid>
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.overline">Response 1</MudText>
+                            <MudTextField @bind-Value="_acceptDrafts[msg.Id]"
+                                          Lines="7" Variant="Variant.Outlined"
+                                          Placeholder="(no draft generated — edit manually)" />
+                            <MudButton FullWidth="true" Variant="Variant.Filled" Color="Color.Primary"
+                                       Class="mt-2"
+                                       StartIcon="@Icons.Material.Filled.Send"
+                                       OnClick="() => Decide(msg, true)"
+                                       Disabled="_deciding.Contains(msg.Id)">
+                                Respond with Response 1
+                            </MudButton>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.overline">Response 2</MudText>
+                            <MudTextField @bind-Value="_declineDrafts[msg.Id]"
+                                          Lines="7" Variant="Variant.Outlined"
+                                          Placeholder="(no draft generated — edit manually)" />
+                            <MudButton FullWidth="true" Variant="Variant.Outlined" Color="Color.Primary"
+                                       Class="mt-2"
+                                       StartIcon="@Icons.Material.Filled.Send"
+                                       OnClick="() => Decide(msg, false)"
+                                       Disabled="_deciding.Contains(msg.Id)">
+                                Respond with Response 2
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                }
+                else
+                {
+                    <MudAlert Severity="@(msg.Approved == true ? Severity.Success : Severity.Error)" Class="mt-3">
+                        @(msg.Approved == true
+                            ? $"Draft saved to mailbox on {msg.DecidedAt?.ToLocalTime():dd MMM HH:mm}"
+                            : $"Declined on {msg.DecidedAt?.ToLocalTime():dd MMM HH:mm}")
+                    </MudAlert>
+                    @if (!string.IsNullOrEmpty(msg.FinalDraft))
+                    {
+                        <MudPaper Elevation="0" Class="pa-3 mt-2" Style="background:#f5f5f5; white-space:pre-wrap; font-size:0.875rem">
+                            @msg.FinalDraft
+                        </MudPaper>
+                    }
+                }
+            </div>
+        }
+    </MudPaper>
+}
+
+@if (!_messages.Any())
+{
+    <MudAlert Severity="Severity.Info">No recruiter messages yet. Click "Scan Now" to check your inbox.</MudAlert>
+}
+
+@code {
+    private List<RecruiterMessage> _messages = [];
+    private readonly HashSet<string> _expanded = [];
+    private readonly HashSet<string> _deciding = [];
+    private readonly Dictionary<string, string> _notes = new();
+    private readonly Dictionary<string, string> _acceptDrafts = new();
+    private readonly Dictionary<string, string> _declineDrafts = new();
+    private bool _scanning;
+    private Timer? _pollTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMessagesAsync();
+        ScanTrigger.ScanCompleted += OnScanCompleted;
+        _pollTimer = new Timer(_ =>
+        {
+            _ = InvokeAsync(LoadMessagesAsync).ContinueWith(
+                t => Snackbar.Add($"Auto-refresh failed: {t.Exception!.InnerException?.Message}", Severity.Warning),
+                TaskContinuationOptions.OnlyOnFaulted);
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task LoadMessagesAsync()
+    {
+        using var scope = ScopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        _messages = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .ToListAsync(db.RecruiterMessages);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnScanCompleted()
+    {
+        _scanning = false;
+        _ = InvokeAsync(LoadMessagesAsync).ContinueWith(
+            t => Snackbar.Add($"Failed to reload messages: {t.Exception!.InnerException?.Message}", Severity.Warning),
+            TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    private void TriggerScan()
+    {
+        _scanning = true;
+        ScanTrigger.TriggerScan();
+        StateHasChanged();
+    }
+
+    private async Task ResetDelta()
+    {
+        using var scope = ScopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var state = await db.SyncStates.FindAsync(MailWorker.DeltaLinkKey);
+        if (state != null)
+        {
+            db.SyncStates.Remove(state);
+            await db.SaveChangesAsync();
+        }
+        Snackbar.Add("Delta reset — scanning full inbox now…", Severity.Warning);
+        TriggerScan();
+    }
+
+    private async Task DiscardAsync(string id)
+    {
+        using var scope = ScopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var record = await db.RecruiterMessages.FindAsync(id);
+        if (record != null)
+        {
+            record.Discarded = true;
+            await db.SaveChangesAsync();
+        }
+        _expanded.Remove(id);
+        await LoadMessagesAsync();
+        Snackbar.Add("Message discarded.", Severity.Normal);
+    }
+
+    private async Task ClearDatabase()
+    {
+        using var scope = ScopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.RecruiterMessages.RemoveRange(db.RecruiterMessages);
+        await db.SaveChangesAsync();
+        _acceptDrafts.Clear();
+        _declineDrafts.Clear();
+        _notes.Clear();
+        _expanded.Clear();
+        await LoadMessagesAsync();
+        Snackbar.Add("Database cleared.", Severity.Error);
+    }
+
+    private void ToggleExpand(string id)
+    {
+        if (_expanded.Contains(id)) _expanded.Remove(id);
+        else _expanded.Add(id);
+        if (!_notes.ContainsKey(id)) _notes[id] = string.Empty;
+        var found = _messages.FirstOrDefault(m => m.Id == id);
+        if (!_acceptDrafts.ContainsKey(id))
+            _acceptDrafts[id] = found?.AcceptDraft ?? string.Empty;
+        if (!_declineDrafts.ContainsKey(id))
+            _declineDrafts[id] = found?.DeclineDraft ?? string.Empty;
+    }
+
+    private async Task Decide(RecruiterMessage msg, bool approved)
+    {
+        _deciding.Add(msg.Id);
+        try
+        {
+            var note = _notes.GetValueOrDefault(msg.Id, string.Empty);
+            var finalDraft = approved
+                ? _acceptDrafts.GetValueOrDefault(msg.Id, msg.AcceptDraft)
+                : _declineDrafts.GetValueOrDefault(msg.Id, msg.DeclineDraft);
+
+            if (!string.IsNullOrWhiteSpace(note))
+                finalDraft = await MergeService.MergeNoteAsync(finalDraft, note);
+
+            // Both approve and reject save a draft — user sends manually from their mail client
+            await DraftService.SaveReplyDraftAsync(msg.GraphMessageId, finalDraft);
+            Snackbar.Add(approved
+                ? "Reply draft saved to your Drafts folder."
+                : "Decline draft saved to your Drafts folder.",
+                approved ? Severity.Success : Severity.Info);
+
+            using var scope = ScopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var record = await db.RecruiterMessages.FindAsync(msg.Id);
+            if (record != null)
+            {
+                record.Approved = approved;
+                record.FinalDraft = approved ? finalDraft : null;
+                record.DecidedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+            }
+
+            await LoadMessagesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _deciding.Remove(msg.Id);
+        }
+    }
+
+    private List<FilterResult> GetFilters(RecruiterMessage msg)
+    {
+        if (string.IsNullOrEmpty(msg.AssessmentJson)) return [];
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<FilterResult>>(msg.AssessmentJson) ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to deserialize AssessmentJson for message {Id}", msg.Id);
+            return [];
+        }
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : name.Length > 0 ? name[0].ToString().ToUpper() : "?";
+    }
+
+    private static string VerdictColor(AssessmentVerdict v) => v switch
+    {
+        AssessmentVerdict.Match => "#0F6E56",
+        AssessmentVerdict.Partial => "#854F0B",
+        _ => "#A32D2D"
+    };
+
+    private static string VerdictBg(AssessmentVerdict v) => v switch
+    {
+        AssessmentVerdict.Match => "#E1F5EE",
+        AssessmentVerdict.Partial => "#FAEEDA",
+        _ => "#FCEBEB"
+    };
+
+    private static string FilterIcon(FilterStatus s) => s switch
+    {
+        FilterStatus.Pass => Icons.Material.Filled.CheckCircle,
+        FilterStatus.Fail => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Warning
+    };
+
+    private static string FilterIconColor(FilterStatus s) => s switch
+    {
+        FilterStatus.Pass => "#0F6E56",
+        FilterStatus.Fail => "#A32D2D",
+        _ => "#854F0B"
+    };
+
+    public void Dispose()
+    {
+        ScanTrigger.ScanCompleted -= OnScanCompleted;
+        _pollTimer?.Dispose();
+    }
+}

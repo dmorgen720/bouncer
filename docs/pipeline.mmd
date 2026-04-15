@@ -1,0 +1,56 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#ffffff", "edgeLabelBackground": "#333", "tertiaryTextColor": "#ffffff", "lineColor": "#aaa"}} }%%
+flowchart TD
+    A([⏱ Background Loop\nPollIntervalSeconds or Manual Trigger]) --> B
+
+    B[Graph API Delta Query\nFetch new messages] --> C{More messages?}
+    C -- No --> Z([💤 Wait for next cycle])
+    C -- Yes --> D
+
+    D[Next message] --> E{Already in DB?\nGraphMessageId}
+    E -- Yes\nSkip --> C
+    E -- No --> F
+
+    F[Stage 1 — LLM Classifier\nsubject + from + bodyPreview] --> G{Is job offer?\nconfidence ≥ 0.7}
+    G -- No --> H[Log: not job offer]
+    H --> C
+    G -- Yes --> I
+
+    I[Fetch full HTML body\nvia Graph API] --> J{Body empty?}
+    J -- Yes\nSkip --> C
+    J -- No --> K
+
+    K[LinkedInMessageParser\nExtract message text\nreplyTo address] --> L
+
+    L{Has attachments?} -- Yes --> M
+    L -- No --> N
+
+    M[Graph API: fetch attachments\n.pdf / .docx / .doc] --> M2[AttachmentTextExtractor\nPdfPig / OpenXml] --> N
+
+    N[Combine body text\n+ attachment text] --> O
+
+    O[Stage 2 — LLM Assessor\nFull message + CV text] --> P[Parse JSON response\nrecruitingCompany · hiringCompany\nfilters · acceptDraft · declineDraft\nreplyLanguage]
+
+    P --> Q[Save RecruiterMessage\nto SQLite\nVerdict · Drafts · Filters]
+
+    Q --> R[Mark email as read\nvia Graph API]
+    R --> C
+
+    Q -.->|Blazor Server UI| S
+
+    subgraph S [" 🖥 Home.razor — Bouncer UI "]
+        direction TB
+        S1[Message card\nverdict chip · filters · message preview]
+        S1 --> S2{User Action}
+        S2 -- Discard --> S3[Set Discarded = true\nHide card]
+        S2 -- Respond with\nResponse 1 --> S4[Save accept draft\nvia Graph createReply]
+        S2 -- Respond with\nResponse 2 --> S5[Save decline draft\nvia Graph createReply]
+    end
+
+    classDef blue fill:#4a9eff,color:#ffffff,stroke:none
+    classDef yellow fill:#f0a500,color:#ffffff,stroke:none
+    classDef ui fill:#4a9eff,color:#ffffff,stroke:none
+
+    class A,Z,B,D,H,I,K,M,M2,N,P,Q,R,S1,S3,S4 blue
+    class C,E,G,J,L,F,O,S2,S5 yellow
+
+    style S fill:#1e1e2e,color:#ffffff,stroke:#4a9eff

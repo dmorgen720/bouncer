@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LinkedInAutoReply/LinkedInAutoReply.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LinkedInAutoReply.Tests/LinkedInAutoReply.Tests.csproj" />
+  </Folder>
+</Solution>
