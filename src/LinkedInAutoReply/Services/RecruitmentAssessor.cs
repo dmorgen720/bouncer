@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using LinkedInAutoReply.Models;
 using Microsoft.Extensions.AI;
 
@@ -10,6 +11,20 @@ public class RecruitmentAssessor(
     ILogger<RecruitmentAssessor> logger)
 {
     private string? _cachedPrompt;
+
+    private record FilterResultDto(
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("reason")] string Reason);
+
+    private record AssessmentOutput(
+        [property: JsonPropertyName("recruitingCompany")] string RecruitingCompany,
+        [property: JsonPropertyName("hiringCompany")] string? HiringCompany,
+        [property: JsonPropertyName("assessment")] string Assessment,
+        [property: JsonPropertyName("filters")] List<FilterResultDto> Filters,
+        [property: JsonPropertyName("acceptDraft")] string AcceptDraft,
+        [property: JsonPropertyName("declineDraft")] string DeclineDraft,
+        [property: JsonPropertyName("replyLanguage")] string ReplyLanguage);
 
     private string LoadPrompt()
     {
@@ -35,12 +50,21 @@ public class RecruitmentAssessor(
                 new(ChatRole.User, messageText)
             };
 
-            var response = await chatClient.GetResponseAsync(messages, cancellationToken: ct);
+            var schema = AIJsonUtilities.CreateJsonSchema(typeof(AssessmentOutput));
+            var options = new ChatOptions
+            {
+                ResponseFormat = ChatResponseFormat.ForJsonSchema(schema, "AssessmentOutput")
+            };
+
+            var response = await chatClient.GetResponseAsync(messages, options, ct);
             rawResponse = response.Text ?? string.Empty;
 
             logger.LogDebug("LLM raw response: {Response}", rawResponse);
-            var json = ExtractJson(rawResponse);
-            return ParseResult(json);
+
+            var output = JsonSerializer.Deserialize<AssessmentOutput>(rawResponse)
+                         ?? throw new InvalidOperationException("LLM returned null or empty JSON");
+
+            return MapToResult(output);
         }
         catch (Exception ex)
         {
@@ -66,52 +90,27 @@ public class RecruitmentAssessor(
         }
     }
 
-    private static AssessmentResult ParseResult(string json)
+    private static AssessmentResult MapToResult(AssessmentOutput output) => new()
     {
-        var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        var verdict = root.GetProperty("assessment").GetString() switch
+        Verdict = output.Assessment switch
         {
             "Match" => AssessmentVerdict.Match,
             "Partial" => AssessmentVerdict.Partial,
             _ => AssessmentVerdict.NoMatch
-        };
-
-        var filters = new List<FilterResult>();
-        if (root.TryGetProperty("filters", out var filtersEl))
-        {
-            foreach (var f in filtersEl.EnumerateArray())
+        },
+        RecruitingCompany = output.RecruitingCompany,
+        HiringCompany = output.HiringCompany,
+        Filters = output.Filters.Select(f => new FilterResult(
+            f.Name,
+            f.Status switch
             {
-                var status = f.GetProperty("status").GetString() switch
-                {
-                    "Pass" => FilterStatus.Pass,
-                    "Fail" => FilterStatus.Fail,
-                    _ => FilterStatus.Warn
-                };
-                filters.Add(new FilterResult(
-                    f.GetProperty("name").GetString() ?? string.Empty,
-                    status,
-                    f.GetProperty("reason").GetString() ?? string.Empty));
-            }
-        }
-
-        return new AssessmentResult
-        {
-            Verdict = verdict,
-            RecruitingCompany = root.TryGetProperty("recruitingCompany", out var rc) ? rc.GetString() ?? string.Empty : string.Empty,
-            HiringCompany = root.TryGetProperty("hiringCompany", out var hc) ? hc.GetString() : null,
-            Filters = filters,
-            AcceptDraft = root.TryGetProperty("acceptDraft", out var ad) ? ad.GetString() ?? string.Empty : string.Empty,
-            DeclineDraft = root.TryGetProperty("declineDraft", out var dd) ? dd.GetString() ?? string.Empty : string.Empty,
-            ReplyLanguage = root.TryGetProperty("replyLanguage", out var rl) ? rl.GetString() ?? "en" : "en"
-        };
-    }
-
-    private static string ExtractJson(string text)
-    {
-        var start = text.IndexOf('{');
-        var end = text.LastIndexOf('}');
-        return start >= 0 && end > start ? text[start..(end + 1)] : text;
-    }
+                "Pass" => FilterStatus.Pass,
+                "Fail" => FilterStatus.Fail,
+                _ => FilterStatus.Warn
+            },
+            f.Reason)).ToList(),
+        AcceptDraft = output.AcceptDraft,
+        DeclineDraft = output.DeclineDraft,
+        ReplyLanguage = output.ReplyLanguage
+    };
 }

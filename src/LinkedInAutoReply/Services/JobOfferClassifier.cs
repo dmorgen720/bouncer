@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 
 namespace LinkedInAutoReply.Services;
@@ -10,6 +11,10 @@ public class JobOfferClassifier(
 {
     private const double ConfidenceThreshold = 0.7;
     private string? _cachedPrompt;
+
+    private record ClassifierOutput(
+        [property: JsonPropertyName("isJobOffer")] bool IsJobOffer,
+        [property: JsonPropertyName("confidence")] double Confidence);
 
     private string LoadPrompt()
     {
@@ -24,10 +29,6 @@ public class JobOfferClassifier(
         return _cachedPrompt;
     }
 
-    /// <summary>
-    /// Returns true if the email looks like a targeted recruiter/job offer message.
-    /// Uses subject + from + body preview — no full body fetch required.
-    /// </summary>
     public async Task<bool> IsJobOfferAsync(
         string subject, string from, string bodyPreview, CancellationToken ct = default)
     {
@@ -39,21 +40,16 @@ public class JobOfferClassifier(
                 new(ChatRole.User, $"From: {from}\nSubject: {subject}\nPreview: {bodyPreview}")
             };
 
-            var response = await chatClient.GetResponseAsync(messages, cancellationToken: ct);
-            var raw = response.Text ?? string.Empty;
-
-            var json = ExtractJson(raw);
-            var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var isJobOffer = root.TryGetProperty("isJobOffer", out var flag) && flag.GetBoolean();
-            var confidence = root.TryGetProperty("confidence", out var conf) ? conf.GetDouble() : 1.0;
+            var options = new ChatOptions { ResponseFormat = ChatResponseFormat.Json };
+            var response = await chatClient.GetResponseAsync(messages, options, ct);
+            var result = JsonSerializer.Deserialize<ClassifierOutput>(ExtractJson(response.Text ?? "{}"))
+                         ?? new ClassifierOutput(true, 1.0);
 
             logger.LogInformation(
                 "Classified [{Subject}] from {From} → isJobOffer={IsJobOffer} confidence={Confidence:P0}",
-                subject, from, isJobOffer, confidence);
+                subject, from, result.IsJobOffer, result.Confidence);
 
-            return isJobOffer && confidence >= ConfidenceThreshold;
+            return result.IsJobOffer && result.Confidence >= ConfidenceThreshold;
         }
         catch (Exception ex)
         {

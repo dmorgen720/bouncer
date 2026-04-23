@@ -27,7 +27,9 @@
       "Bash(dotnet add:*)",
       "Bash(cat)",
       "Bash(dotnet run:*)",
-      "Bash(dotnet user-secrets:*)"
+      "Bash(dotnet user-secrets:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)"
     ]
   }
 }

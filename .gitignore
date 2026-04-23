@@ -18,3 +18,5 @@ secrets.json
 # OS
 .DS_Store
 Thumbs.db
+src/LinkedInAutoReply/recruiter.db
+.claude/settings.local.json

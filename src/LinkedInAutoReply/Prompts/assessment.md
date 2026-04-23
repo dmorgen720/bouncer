@@ -26,7 +26,7 @@ Before scoring the filters, identify:
 
 ✅ **Accept:**
 - Basel, Basel-Stadt, Basel-Landschaft, tri-border region (CH/DE/FR)
-- Partialy remote (max 40%)
+- Partially remote (max 40%)
 
 ❌ **Reject:**
 - Geneva, Bern, Lausanne, or any Swiss city outside the 20km of the Basel area with required presence
@@ -96,7 +96,6 @@ Friendly but brief — two to four short paragraphs maximum.
 
 Respond **ONLY** with this JSON structure — no markdown, no preamble, no explanation:
 
-```json
 {
   "recruitingCompany": "string",
   "hiringCompany": "string or null",
@@ -110,7 +109,6 @@ Respond **ONLY** with this JSON structure — no markdown, no preamble, no expla
   "declineDraft": "full reply text",
   "replyLanguage": "en | fr | de"
 }
-```
 
 Rules:
 - `assessment` is **Match** if all three filters Pass, **Partial** if one Warn/Fail, **NoMatch** if two or more Fail

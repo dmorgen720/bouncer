@@ -21,9 +21,7 @@ message or job offer** directed at a specific person.
 
 Respond ONLY with valid JSON — no markdown, no explanation:
 
-```json
 { "isJobOffer": true, "confidence": 0.95 }
-```
 
 - `isJobOffer`: true if this is a targeted recruiter/job offer message, false otherwise
 - `confidence`: float 0.0–1.0 reflecting your certainty
